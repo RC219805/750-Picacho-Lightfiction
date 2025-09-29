@@ -135,7 +135,7 @@ def _apply_grading(image: Image.Image, grade_params: Dict) -> Image.Image:
 
     contrast = grade_params.get("contrast")
     if contrast is not None:
-        result = ImageEnhance.Contrast(result).enhance(float(contrast))
+        result = ImageEnhance.Contrast(result).enhance(1 + float(contrast))
 
     saturation = grade_params.get("saturation")
     if saturation is not None:
