@@ -11,6 +11,7 @@ import sys
 # Add current directory to path for imports
 sys.path.append(os.path.dirname(__file__))
 from config import DCI_4K_RESOLUTION
+from adjustments import apply_grading
 
 
 def load_image(filepath):
@@ -106,7 +107,13 @@ def resize_image(image, target_size=DCI_4K_RESOLUTION, resample=Image.LANCZOS):
     return background
 
 
-def process_image(input_path, output_path, target_size=DCI_4K_RESOLUTION):
+def process_image(
+    input_path,
+    output_path,
+    target_size=DCI_4K_RESOLUTION,
+    crop_box=None,
+    grading=None,
+):
     """
     Complete image processing workflow: load, resize, and save.
     
@@ -121,10 +128,18 @@ def process_image(input_path, output_path, target_size=DCI_4K_RESOLUTION):
     try:
         # Load the image
         image = load_image(input_path)
-        
-        # Resize to target resolution
-        processed_image = resize_image(image, target_size)
-        
+
+        if crop_box is not None:
+            image = image.crop(tuple(crop_box))
+
+        # Resize to target resolution when requested
+        processed_image = (
+            resize_image(image, target_size) if target_size is not None else image.copy()
+        )
+
+        if grading:
+            processed_image = apply_grading(processed_image, grading)
+
         # Save the processed image
         save_image(processed_image, output_path)
         
