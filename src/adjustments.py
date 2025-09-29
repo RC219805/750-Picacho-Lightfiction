@@ -142,7 +142,7 @@ def apply_grading(image: Image.Image, grading: Optional[Dict[str, float]]) -> Im
     if highlight_lift:
         result = apply_highlight_lift(result, highlight_lift)
 
-    micro_contrast = grading.get("micro_contrast") or grading.get("local_contrast")
+    micro_contrast = grading.get("micro_contrast") if grading.get("micro_contrast") is not None else grading.get("local_contrast")
     if micro_contrast is not None:
         result = apply_local_contrast(result, micro_contrast)
 
