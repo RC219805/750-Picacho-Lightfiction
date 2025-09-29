@@ -7,10 +7,12 @@ integrity and aspect ratios.
 from PIL import Image, ImageOps
 import os
 import sys
+from typing import Dict, Iterable, Optional
 
 # Add current directory to path for imports
 sys.path.append(os.path.dirname(__file__))
 from config import DCI_4K_RESOLUTION
+from adjustments import apply_crop_preset
 
 
 def load_image(filepath):
@@ -106,14 +108,58 @@ def resize_image(image, target_size=DCI_4K_RESOLUTION, resample=Image.LANCZOS):
     return background
 
 
-def process_image(input_path, output_path, target_size=DCI_4K_RESOLUTION):
+def _normalize_variant(variant: Optional[Dict]) -> Dict:
+    """Return a normalized variant configuration dict."""
+
+    if variant is None:
+        return {}
+
+    return dict(variant)
+
+
+def _apply_variant_crop(image: Image.Image, variant: Dict) -> Image.Image:
+    """Apply any configured crop to *image* and return the result."""
+
+    crop_config = variant.get("crop")
+    if not crop_config:
+        return image
+
+    offset: Optional[Iterable[float]] = variant.get("crop_offset")
+
+    if isinstance(crop_config, str):
+        return apply_crop_preset(image, crop_config, offset=offset)
+
+    if isinstance(crop_config, dict):
+        preset = crop_config.get("preset")
+        if not preset:
+            raise ValueError("Variant crop dictionaries must include a 'preset' key.")
+        local_offset = crop_config.get("offset", offset)
+        return apply_crop_preset(image, preset, offset=local_offset)
+
+    raise TypeError(
+        "Variant crop configuration must be a preset name or mapping with a 'preset' key."
+    )
+
+
+def process_image(
+    input_path,
+    output_path,
+    target_size=DCI_4K_RESOLUTION,
+    *,
+    variant: Optional[Dict] = None,
+):
     """
-    Complete image processing workflow: load, resize, and save.
-    
+    Complete image processing workflow: load, adjust, resize, and save.
+
     Args:
         input_path (str): Path to the input image
         output_path (str): Path for the output image
         target_size (tuple): Target size for resizing
+        variant (dict, optional): Additional directives for this render variant.
+            Supported keys include:
+            ``"crop"`` (preset name or ``{"preset": name, "offset": (x, y)}``),
+            ``"crop_offset"`` (fallback offset tuple), and ``"size"`` to override
+            the target resolution.
         
     Returns:
         bool: True if processing was successful, False otherwise
@@ -121,7 +167,16 @@ def process_image(input_path, output_path, target_size=DCI_4K_RESOLUTION):
     try:
         # Load the image
         image = load_image(input_path)
-        
+
+        variant_config = _normalize_variant(variant)
+
+        # Apply variant-driven cropping before resizing so padding occurs only
+        # after the target aspect ratio has been satisfied.
+        image = _apply_variant_crop(image, variant_config)
+
+        if "size" in variant_config:
+            target_size = tuple(variant_config["size"])
+
         # Resize to target resolution
         processed_image = resize_image(image, target_size)
         
