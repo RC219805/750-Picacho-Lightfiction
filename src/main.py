@@ -97,10 +97,7 @@ def _extract_grading(entry: Dict) -> Dict[str, float]:
             numeric = float(value)
         except (TypeError, ValueError):
             continue
-        if key in ("micro_contrast", "local_contrast"):
-            grading["micro_contrast"] = numeric
-        else:
-            grading[key] = numeric
+        grading[key] = numeric
 
     return grading
 
