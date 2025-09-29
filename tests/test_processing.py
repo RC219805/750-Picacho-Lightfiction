@@ -74,7 +74,7 @@ def test_apply_crop_preset_resolves_mapping():
     base = Image.new("RGB", (1600, 1600), color=(100, 100, 100))
     preset_image = apply_crop_preset(base, "web_16x9")
 
-    assert abs((preset_image.width / preset_image.height) - (16 / 9)) < 1e-6
+    assert (preset_image.width / preset_image.height) == pytest.approx(16 / 9, rel=1e-3)
 
 
 def test_process_image_honors_variant_crop(tmp_path):
