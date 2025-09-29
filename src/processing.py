@@ -1,16 +1,18 @@
 """Core image manipulation functions using PIL (Pillow).
 
-Handles loading, saving, and resizing of images while preserving image
-integrity and aspect ratios.
+Handles loading, saving, resizing, and grading operations for images while
+preserving image integrity and aspect ratios.
 """
 
-from PIL import Image, ImageOps
+from typing import Dict, Iterable, Optional
+
+from PIL import Image, ImageEnhance, ImageOps
 import os
 import sys
 
 # Add current directory to path for imports
 sys.path.append(os.path.dirname(__file__))
-from config import DCI_4K_RESOLUTION
+from config import ASPECT_RATIO_PRESETS, DCI_4K_RESOLUTION
 
 
 def load_image(filepath):
@@ -106,29 +108,95 @@ def resize_image(image, target_size=DCI_4K_RESOLUTION, resample=Image.LANCZOS):
     return background
 
 
-def process_image(input_path, output_path, target_size=DCI_4K_RESOLUTION):
-    """
-    Complete image processing workflow: load, resize, and save.
-    
-    Args:
-        input_path (str): Path to the input image
-        output_path (str): Path for the output image
-        target_size (tuple): Target size for resizing
-        
-    Returns:
-        bool: True if processing was successful, False otherwise
-    """
+def _resolve_resize_target(operation: Dict, presets: Dict[str, tuple]) -> tuple:
+    """Return a ``(width, height)`` tuple for a resize operation."""
+
+    if "preset" in operation:
+        preset_name = operation["preset"]
+        if preset_name not in presets:
+            raise ValueError(f"Unknown aspect ratio preset: {preset_name}")
+        return presets[preset_name]
+
+    if "width" in operation and "height" in operation:
+        return int(operation["width"]), int(operation["height"])
+
+    raise ValueError("Resize operation must include a preset or width/height.")
+
+
+def _apply_grading(image: Image.Image, grade_params: Dict) -> Image.Image:
+    """Apply exposure/contrast/saturation adjustments to ``image``."""
+
+    result = image
+
+    # Exposure is treated as a brightness delta (0.1 -> 110% brightness)
+    exposure_delta = grade_params.get("exposure")
+    if exposure_delta is not None:
+        result = ImageEnhance.Brightness(result).enhance(1 + float(exposure_delta))
+
+    contrast = grade_params.get("contrast")
+    if contrast is not None:
+        result = ImageEnhance.Contrast(result).enhance(float(contrast))
+
+    saturation = grade_params.get("saturation")
+    if saturation is not None:
+        result = ImageEnhance.Color(result).enhance(float(saturation))
+
+    return result
+
+
+def process_variant(
+    input_path: str,
+    output_path: str,
+    operations: Optional[Iterable[Dict]] = None,
+    *,
+    presets: Optional[Dict[str, tuple]] = None,
+) -> bool:
+    """Process ``input_path`` into ``output_path`` using the supplied operations."""
+
+    if presets is None:
+        presets = ASPECT_RATIO_PRESETS
+
     try:
-        # Load the image
         image = load_image(input_path)
-        
-        # Resize to target resolution
-        processed_image = resize_image(image, target_size)
-        
-        # Save the processed image
-        save_image(processed_image, output_path)
-        
+        ops = list(operations or [])
+
+        for operation in ops:
+            if not isinstance(operation, dict):
+                raise ValueError("Each operation must be a mapping.")
+
+            op_type = operation.get("type")
+            if op_type == "resize":
+                size = _resolve_resize_target(operation, presets)
+                image = resize_image(image, size)
+            elif op_type == "grade":
+                params = {k: v for k, v in operation.items() if k != "type"}
+                image = _apply_grading(image, params)
+            else:
+                raise ValueError(f"Unsupported operation type: {op_type}")
+
+        save_kwargs = {}
+        # Allow quality overrides from final operation via "quality" key
+        if ops:
+            last_quality = next(
+                (op["quality"] for op in reversed(ops) if "quality" in op),
+                None,
+            )
+            if last_quality is not None:
+                save_kwargs["quality"] = int(last_quality)
+
+        save_image(image, output_path, **save_kwargs)
         return True
-    except Exception as e:
-        print(f"Error processing image {input_path}: {str(e)}")
+    except Exception as exc:
+        print(f"Error processing variant {output_path}: {exc}")
         return False
+
+
+def process_image(input_path, output_path, target_size=DCI_4K_RESOLUTION):
+    """Backward compatible wrapper that resizes to ``target_size`` and saves."""
+
+    return process_variant(
+        input_path,
+        output_path,
+        operations=[{"type": "resize", "width": target_size[0], "height": target_size[1]}],
+        presets={"__custom__": target_size},
+    )
