@@ -124,16 +124,18 @@ def _apply_variant_crop(image: Image.Image, variant: Dict) -> Image.Image:
     if not crop_config:
         return image
 
-    offset: Optional[Iterable[float]] = variant.get("crop_offset")
-
     if isinstance(crop_config, str):
+        offset: Optional[Iterable[float]] = variant.get("crop_offset")
         return apply_crop_preset(image, crop_config, offset=offset)
 
     if isinstance(crop_config, dict):
         preset = crop_config.get("preset")
         if not preset:
             raise ValueError("Variant crop dictionaries must include a 'preset' key.")
-        local_offset = crop_config.get("offset", offset)
+        if "offset" in crop_config:
+            local_offset = crop_config["offset"]
+        else:
+            local_offset = variant.get("crop_offset")
         return apply_crop_preset(image, preset, offset=local_offset)
 
     raise TypeError(
