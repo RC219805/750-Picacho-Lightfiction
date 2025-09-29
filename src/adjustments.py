@@ -15,7 +15,7 @@ def _ensure_rgb(image: Image.Image) -> Image.Image:
         return image.copy()
 
     if image.mode == "RGBA":
-        return image.convert("RGBA")
+        return image.copy()
 
     return image.convert("RGB")
 
