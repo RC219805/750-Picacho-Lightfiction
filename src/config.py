@@ -1,7 +1,7 @@
-"""
-Configuration constants for the rendering pipeline.
-Defines project-wide settings and constants.
-"""
+"""Project-wide configuration constants for the rendering pipeline."""
+
+from pathlib import Path
+
 
 # 4K DCI (Digital Cinema Initiative) resolution
 DCI_4K_WIDTH = 4096
@@ -11,3 +11,15 @@ DCI_4K_RESOLUTION = (DCI_4K_WIDTH, DCI_4K_HEIGHT)
 # Directory paths
 INPUT_DIR = "input"
 OUTPUT_DIR = "output"
+
+# Default manifest describing rendering tasks
+DEFAULT_MANIFEST_PATH = Path("config") / "view_selects.yml"
+
+
+# Common aspect ratio presets that can be referenced from the manifest.
+ASPECT_RATIO_PRESETS = {
+    "dci_4k": DCI_4K_RESOLUTION,
+    "square_1080": (1080, 1080),
+    "vertical_story": (1080, 1920),
+    "ultrawide": (5120, 2160),
+}

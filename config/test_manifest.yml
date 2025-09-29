@@ -1,0 +1,16 @@
+renders:
+  - source: test_image.jpg
+    variants:
+      - filename: test_image_dci4k.jpg
+        operations:
+          - type: resize
+            preset: dci_4k
+          - type: grade
+            exposure: 0.05
+            contrast: 0.05
+      - filename: test_image_square.jpg
+        operations:
+          - type: resize
+            preset: square_1080
+          - type: grade
+            exposure: 0.1

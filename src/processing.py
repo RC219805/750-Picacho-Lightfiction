@@ -1,17 +1,18 @@
 """Core image manipulation functions using PIL (Pillow).
 
-Handles loading, saving, and resizing of images while preserving image
-integrity and aspect ratios.
+Handles loading, saving, resizing, cropping, and grading operations for images
+while preserving image integrity and aspect ratios.
 """
 
-from PIL import Image, ImageOps
+from typing import Dict, Iterable, Optional
+from PIL import Image, ImageEnhance, ImageOps
 import os
 import sys
 
 # Add current directory to path for imports
 sys.path.append(os.path.dirname(__file__))
-from config import DCI_4K_RESOLUTION
-from adjustments import apply_grading
+from config import ASPECT_RATIO_PRESETS, DCI_4K_RESOLUTION
+from adjustments import apply_grading, apply_crop_preset
 
 
 def load_image(filepath):
@@ -107,20 +108,147 @@ def resize_image(image, target_size=DCI_4K_RESOLUTION, resample=Image.LANCZOS):
     return background
 
 
+def _resolve_resize_target(operation: Dict, presets: Dict[str, tuple]) -> tuple:
+    """Return a ``(width, height)`` tuple for a resize operation."""
+
+    if "preset" in operation:
+        preset_name = operation["preset"]
+        if preset_name not in presets:
+            raise ValueError(f"Unknown aspect ratio preset: {preset_name}")
+        return presets[preset_name]
+
+    if "width" in operation and "height" in operation:
+        return int(operation["width"]), int(operation["height"])
+
+    raise ValueError("Resize operation must include a preset or width/height.")
+
+
+def _apply_grading_v2(image: Image.Image, grade_params: Dict) -> Image.Image:
+    """Apply exposure/contrast/saturation adjustments to ``image``."""
+
+    result = image
+
+    # Exposure is treated as an additive brightness factor: multiplier = 1.0 + exposure_delta (e.g., 0.1 -> 1.1 = 110% brightness)
+    exposure_delta = grade_params.get("exposure")
+    if exposure_delta is not None:
+        result = ImageEnhance.Brightness(result).enhance(1 + float(exposure_delta))
+
+    contrast = grade_params.get("contrast")
+    if contrast is not None:
+        result = ImageEnhance.Contrast(result).enhance(1 + float(contrast))
+
+    saturation = grade_params.get("saturation")
+    if saturation is not None:
+        result = ImageEnhance.Color(result).enhance(1 + float(saturation))
+
+    return result
+
+
+def _normalize_variant(variant: Optional[Dict]) -> Dict:
+    """Return a normalized variant configuration dict."""
+
+    if variant is None:
+        return {}
+
+    return dict(variant)
+
+
+def _apply_variant_crop(image: Image.Image, variant: Dict) -> Image.Image:
+    """Apply any configured crop to *image* and return the result."""
+
+    crop_config = variant.get("crop")
+    if not crop_config:
+        return image
+
+    if isinstance(crop_config, str):
+        offset: Optional[Iterable[float]] = variant.get("crop_offset")
+        return apply_crop_preset(image, crop_config, offset=offset)
+
+    if isinstance(crop_config, dict):
+        preset = crop_config.get("preset")
+        if not preset:
+            raise ValueError("Variant crop dictionaries must include a 'preset' key.")
+        if "offset" in crop_config:
+            local_offset = crop_config["offset"]
+        else:
+            local_offset = variant.get("crop_offset")
+        return apply_crop_preset(image, preset, offset=local_offset)
+
+    raise TypeError(
+        "Variant crop configuration must be a preset name or mapping with a 'preset' key."
+    )
+
+
+def process_variant(
+    input_path: str,
+    output_path: str,
+    operations: Optional[Iterable[Dict]] = None,
+    *,
+    presets: Optional[Dict[str, tuple]] = None,
+) -> bool:
+    """Process ``input_path`` into ``output_path`` using the supplied operations."""
+
+    if presets is None:
+        presets = ASPECT_RATIO_PRESETS
+
+    try:
+        image = load_image(input_path)
+        ops = list(operations or [])
+
+        for operation in ops:
+            if not isinstance(operation, dict):
+                raise ValueError("Each operation must be a mapping.")
+
+            op_type = operation.get("type")
+            if op_type == "resize":
+                size = _resolve_resize_target(operation, presets)
+                image = resize_image(image, size)
+            elif op_type == "grade":
+                params = {k: v for k, v in operation.items() if k != "type"}
+                image = _apply_grading_v2(image, params)
+            else:
+                raise ValueError(f"Unsupported operation type: {op_type}")
+
+        save_kwargs = {}
+        # Allow quality overrides from final operation via "quality" key
+        if ops:
+            last_quality = next(
+                (op["quality"] for op in reversed(ops) if "quality" in op),
+                None,
+            )
+            if last_quality is not None:
+                save_kwargs["quality"] = int(last_quality)
+
+        save_image(image, output_path, **save_kwargs)
+        return True
+    except Exception as exc:
+        print(f"Error processing variant {output_path}: {exc}")
+        return False
+
+
 def process_image(
     input_path,
     output_path,
     target_size=DCI_4K_RESOLUTION,
     crop_box=None,
     grading=None,
+    *,
+    variant: Optional[Dict] = None,
 ):
     """
-    Complete image processing workflow: load, resize, and save.
+    Complete image processing workflow: load, adjust, resize, and save.
     
     Args:
         input_path (str): Path to the input image
         output_path (str): Path for the output image
         target_size (tuple): Target size for resizing
+        crop_box (tuple, optional): Manual crop box (left, top, right, bottom)
+        grading (dict, optional): Grading parameters for color adjustments
+        variant (dict, optional): Additional directives for this render variant.
+            Supported keys include:
+            ``"crop"`` (preset name or ``{"preset": name, "offset": (x, y)}``),
+            ``"crop_offset"`` (fallback offset tuple), and ``"size"`` to override
+            the target resolution.
         
     Returns:
         bool: True if processing was successful, False otherwise
@@ -129,8 +257,18 @@ def process_image(
         # Load the image
         image = load_image(input_path)
 
+        variant_config = _normalize_variant(variant)
+
+        # Apply manual crop box if specified (for backward compatibility)
         if crop_box is not None:
             image = image.crop(tuple(crop_box))
+
+        # Apply variant-driven cropping before resizing so padding occurs only
+        # after the target aspect ratio has been satisfied.
+        image = _apply_variant_crop(image, variant_config)
+
+        if "size" in variant_config:
+            target_size = tuple(variant_config["size"])
 
         # Resize to target resolution when requested
         processed_image = (
