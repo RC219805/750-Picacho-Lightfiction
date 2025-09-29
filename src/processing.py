@@ -123,25 +123,9 @@ def _resolve_resize_target(operation: Dict, presets: Dict[str, tuple]) -> tuple:
     raise ValueError("Resize operation must include a preset or width/height.")
 
 
-def _apply_grading_v2(image: Image.Image, grade_params: Dict) -> Image.Image:
-    """Apply exposure/contrast/saturation adjustments to ``image``."""
-
-    result = image
-
-    # Exposure is treated as an additive brightness factor: multiplier = 1.0 + exposure_delta (e.g., 0.1 -> 1.1 = 110% brightness)
-    exposure_delta = grade_params.get("exposure")
-    if exposure_delta is not None:
-        result = ImageEnhance.Brightness(result).enhance(1 + float(exposure_delta))
-
-    contrast = grade_params.get("contrast")
-    if contrast is not None:
-        result = ImageEnhance.Contrast(result).enhance(1 + float(contrast))
-
-    saturation = grade_params.get("saturation")
-    if saturation is not None:
-        result = ImageEnhance.Color(result).enhance(1 + float(saturation))
-
-    return result
+# Note: Grading functionality is now handled by apply_grading() from adjustments.py
+# which provides more advanced grading operations including temperature shift,
+# shadow/highlight lift, and local contrast adjustments.
 
 
 def _normalize_variant(variant: Optional[Dict]) -> Dict:
@@ -203,9 +187,17 @@ def process_variant(
             if op_type == "resize":
                 size = _resolve_resize_target(operation, presets)
                 image = resize_image(image, size)
+            elif op_type == "crop":
+                # Support crop operations in YAML manifests
+                preset = operation.get("preset")
+                if not preset:
+                    raise ValueError("Crop operation must include a 'preset' key.")
+                offset = operation.get("offset")
+                image = apply_crop_preset(image, preset, offset=offset)
             elif op_type == "grade":
                 params = {k: v for k, v in operation.items() if k != "type"}
-                image = _apply_grading_v2(image, params)
+                # Use the advanced grading from adjustments.py instead of the simple one
+                image = apply_grading(image, params)
             else:
                 raise ValueError(f"Unsupported operation type: {op_type}")
 

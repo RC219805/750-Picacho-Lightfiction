@@ -123,13 +123,35 @@ def apply_local_contrast(image: Image.Image, amount: float, radius: float = 2.0)
 
 
 def apply_grading(image: Image.Image, grading: Optional[Dict[str, float]]) -> Image.Image:
-    """Apply grading primitives in a predictable order."""
+    """Apply grading primitives in a predictable order.
+    
+    Supports both advanced grading parameters (temperature_shift, shadow_lift, 
+    highlight_lift, micro_contrast/local_contrast) and simple parameters 
+    (exposure, contrast, saturation) for compatibility with YAML manifests.
+    """
 
     if not grading:
         return image.copy()
 
     result = image.copy()
 
+    # Handle simple grading parameters first (for YAML manifest compatibility)
+    exposure = grading.get("exposure")
+    if exposure is not None:
+        from PIL import ImageEnhance
+        result = ImageEnhance.Brightness(result).enhance(1 + float(exposure))
+
+    contrast = grading.get("contrast") 
+    if contrast is not None:
+        from PIL import ImageEnhance
+        result = ImageEnhance.Contrast(result).enhance(1 + float(contrast))
+
+    saturation = grading.get("saturation")
+    if saturation is not None:
+        from PIL import ImageEnhance
+        result = ImageEnhance.Color(result).enhance(1 + float(saturation))
+
+    # Handle advanced grading parameters
     temp_shift = grading.get("temperature_shift")
     if temp_shift:
         result = apply_temperature_shift(result, temp_shift)
