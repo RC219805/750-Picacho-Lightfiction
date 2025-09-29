@@ -1,9 +1,10 @@
-"""
-Core image manipulation functions using PIL (Pillow).
-Handles loading, saving, and resizing of images.
+"""Core image manipulation functions using PIL (Pillow).
+
+Handles loading, saving, and resizing of images while preserving image
+integrity and aspect ratios.
 """
 
-from PIL import Image
+from PIL import Image, ImageOps
 import os
 import sys
 
@@ -55,19 +56,54 @@ def save_image(image, filepath, quality=95):
         image.save(filepath)
 
 
+def _background_color_for_mode(mode):
+    """Return a neutral background color that matches the supplied mode."""
+
+    if mode in ("RGBA", "LA"):
+        return tuple([0] * len(mode))
+
+    if mode == "RGB":
+        return (0, 0, 0)
+
+    if mode == "L":
+        return 0
+
+    # Fall back to black/zero for all other modes (e.g., "CMYK", "P").
+    return 0
+
+
 def resize_image(image, target_size=DCI_4K_RESOLUTION, resample=Image.LANCZOS):
+    """Resize *image* to fit within *target_size* without distortion.
+
+    The source image is scaled to fit inside the target dimensions while
+    maintaining its aspect ratio. Letterboxing/pillarboxing is applied as
+    needed so the returned image always matches ``target_size`` exactly.
     """
-    Resize an image to the target size.
-    
-    Args:
-        image (PIL.Image): The image to resize
-        target_size (tuple): Target size as (width, height)
-        resample: Resampling algorithm (default: LANCZOS for high quality)
-        
-    Returns:
-        PIL.Image: The resized image
-    """
-    return image.resize(target_size, resample)
+
+    if image.size == target_size:
+        return image.copy()
+
+    # Scale while preserving aspect ratio.
+    contained = ImageOps.contain(image, target_size, method=resample)
+
+    if contained.size == target_size:
+        return contained
+
+    background = Image.new(
+        contained.mode, target_size, color=_background_color_for_mode(contained.mode)
+    )
+
+    offset_x = (target_size[0] - contained.size[0]) // 2
+    offset_y = (target_size[1] - contained.size[1]) // 2
+
+    if contained.mode in ("RGBA", "LA") or (
+        contained.mode == "P" and "transparency" in contained.info
+    ):
+        background.paste(contained, (offset_x, offset_y), contained)
+    else:
+        background.paste(contained, (offset_x, offset_y))
+
+    return background
 
 
 def process_image(input_path, output_path, target_size=DCI_4K_RESOLUTION):
