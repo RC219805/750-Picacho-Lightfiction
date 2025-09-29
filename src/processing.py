@@ -128,7 +128,7 @@ def _apply_grading(image: Image.Image, grade_params: Dict) -> Image.Image:
 
     result = image
 
-    # Exposure is treated as a brightness delta (0.1 -> 110% brightness)
+    # Exposure is treated as an additive brightness factor: multiplier = 1.0 + exposure_delta (e.g., 0.1 -> 1.1 = 110% brightness)
     exposure_delta = grade_params.get("exposure")
     if exposure_delta is not None:
         result = ImageEnhance.Brightness(result).enhance(1 + float(exposure_delta))
