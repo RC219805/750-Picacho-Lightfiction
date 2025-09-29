@@ -1,7 +1,7 @@
 # Example manifest describing how source renders should be processed.
 # Each entry under `renders` maps a source image to one or more variants.
 # Variants reference aspect ratio presets defined in src.config.ASPECT_RATIO_PRESETS
-# and can chain multiple operations such as resizing and grading.
+# and can chain multiple operations such as cropping, resizing and grading.
 renders:
   - source: lobby_daylight.jpg
     variants:
@@ -19,10 +19,22 @@ renders:
             preset: square_1080
           - type: grade
             exposure: 0.1
+      - filename: lobby_daylight_hero.jpg
+        operations:
+          - type: crop
+            preset: hero_21x9
+            offset: [0, -0.2]  # Bias crop slightly upward
+          - type: resize
+            preset: dci_4k
+          - type: grade
+            temperature_shift: 15  # Warm the image slightly
+            micro_contrast: 1.1    # Enhance local contrast
   - source: rooftop_evening.png
     variants:
       - filename: rooftop_evening_story.png
         operations:
+          - type: crop
+            preset: web_16x9
           - type: resize
             preset: vertical_story
           - type: grade

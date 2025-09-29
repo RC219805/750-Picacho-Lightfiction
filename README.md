@@ -52,9 +52,28 @@ python -m src.main --manifest config/view_selects.yml --input-dir input --output
 
 The YAML manifest allows you to specify:
 - Multiple output variants per source image
-- Resize operations with aspect ratio presets
-- Color grading operations (exposure, contrast, saturation)
+- Crop operations using preset aspect ratios with focal offsets
+- Resize operations with aspect ratio presets  
+- Color grading operations (exposure, contrast, saturation, temperature_shift, shadow_lift, highlight_lift, micro_contrast)
 - Custom output filenames and directories
+
+Example YAML manifest with crop and advanced grading:
+
+```yaml
+renders:
+  - source: lobby_daylight.jpg
+    variants:
+      - filename: lobby_daylight_hero.jpg
+        operations:
+          - type: crop
+            preset: hero_21x9
+            offset: [0, -0.2]  # Bias crop slightly upward
+          - type: resize  
+            preset: dci_4k
+          - type: grade
+            temperature_shift: 15  # Warm the image
+            micro_contrast: 1.1    # Enhance local contrast
+```
 
 ### Crop Presets
 
@@ -70,8 +89,17 @@ window towards the top/left (`-1`) or bottom/right (`+1`).
 | `card_4x3`    | 4:3    | Gallery cards and compact thumbnails.         |
 | `square_1x1`  | 1:1    | Balanced social and avatar crops.            |
 
-To incorporate a crop into the processing pipeline, pass a `variant` mapping to
-`process_image`:
+Crop presets can be used in two ways:
+
+**1. Through YAML manifests (recommended):**
+```yaml
+operations:
+  - type: crop
+    preset: hero_21x9
+    offset: [0, -0.5]  # Optional focal offset
+```
+
+**2. Directly in Python code:**
 
 ```python
 from src.processing import process_image

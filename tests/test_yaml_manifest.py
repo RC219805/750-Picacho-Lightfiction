@@ -160,3 +160,62 @@ def test_iterate_tasks_generates_correct_tasks():
     assert tasks[1]["source"] == input_dir / "image1.jpg"
     assert tasks[1]["output"] == output_dir / "output2.jpg"
     assert tasks[1]["operations"] == [{"type": "grade", "exposure": 0.1}]
+
+
+def test_yaml_manifest_supports_crop_operations(tmp_path):
+    """The YAML manifest system supports crop operations from adjustments.py."""
+    
+    input_dir = tmp_path / "input"
+    output_dir = tmp_path / "output"
+    input_dir.mkdir()
+    output_dir.mkdir()
+
+    # Create a wide test image
+    base_image = Image.new("RGB", (3000, 1500), color=(100, 100, 100))
+    source_path = input_dir / "test_render.jpg"
+    base_image.save(source_path)
+
+    manifest = {
+        "renders": [
+            {
+                "source": "test_render.jpg",
+                "variants": [
+                    {
+                        "filename": "test_render_cropped.jpg",
+                        "operations": [
+                            {"type": "crop", "preset": "hero_21x9"},
+                            {"type": "resize", "preset": "square_1080"},
+                        ],
+                    },
+                ],
+            }
+        ]
+    }
+
+    manifest_path = tmp_path / "manifest.yml"
+    manifest_path.write_text(yaml.safe_dump(manifest))
+
+    # Test the CLI integration
+    completed = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "src.main",
+            "--manifest",
+            str(manifest_path),
+            "--input-dir",
+            str(input_dir),
+            "--output-dir",
+            str(output_dir),
+        ],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+
+    cropped_output = output_dir / "test_render_cropped.jpg"
+    assert cropped_output.exists(), completed.stdout
+
+    # Verify the image was processed correctly
+    cropped_image = Image.open(cropped_output)
+    assert cropped_image.size == (1080, 1080)  # Should be square after resize
