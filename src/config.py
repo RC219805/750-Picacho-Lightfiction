@@ -9,8 +9,11 @@ DCI_4K_HEIGHT = 2160
 DCI_4K_RESOLUTION = (DCI_4K_WIDTH, DCI_4K_HEIGHT)
 
 # Directory paths
-INPUT_DIR = "input"
-OUTPUT_DIR = "output"
+# Updated default directories for pipeline IO locations.
+# Use nested folders so that raw assets and render outputs live alongside
+# other project data without cluttering the repository root.
+INPUT_DIR = "data/new_input"
+OUTPUT_DIR = "results/new_output"
 
 # Default manifest describing rendering tasks
 DEFAULT_MANIFEST_PATH = Path("config") / "view_selects.yml"

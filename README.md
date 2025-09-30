@@ -20,8 +20,8 @@ Tools for spatially-aware application of materials and textures to architectural
 
 ```
 .
-├── input/          # Drop source renderings here
-├── output/         # Processed images are written here
+├── data/new_input/     # Drop source renderings here
+├── results/new_output/ # Processed images are written here
 ├── src/
 │   ├── adjustments.py  # Image grading and crop presets
 │   ├── config.py       # Central configuration (input/output paths, target resolution)
@@ -33,21 +33,21 @@ Tools for spatially-aware application of materials and textures to architectural
 
 ## Usage
 
-1. Place the architectural rendering images you want to process into the `input/` directory.
+1. Place the architectural rendering images you want to process into the `data/new_input/` directory.
 2. Run the pipeline:
 
    ```bash
    python -m src.main
    ```
 
-3. Processed files will be saved in the `output/` directory with the suffix `_processed`.
+3. Processed files will be saved in the `results/new_output/` directory with the suffix `_processed`.
 
 ### YAML Manifest Processing
 
 For advanced workflows, you can use YAML manifests to define multiple variants and operations:
 
 ```bash
-python -m src.main --manifest config/view_selects.yml --input-dir input --output-dir output
+python -m src.main --manifest config/view_selects.yml --input-dir data/new_input --output-dir results/new_output
 ```
 
 The YAML manifest allows you to specify:
@@ -112,8 +112,8 @@ operations:
 from src.processing import process_image
 
 process_image(
-    "input/render.png",
-    "output/render_hero.png",
+    "data/new_input/render.png",
+    "results/new_output/render_hero.png",
     target_size=(1600, 900),
     variant={
         "crop": {"preset": "hero_21x9", "offset": (0, -0.5)},
@@ -135,6 +135,6 @@ pytest
 
 ## Troubleshooting
 
-- If the script reports that no images were found, double-check that files exist in the `input/` directory and that they use supported extensions (`.jpg`, `.jpeg`, `.png`, `.bmp`, `.tiff`, `.tif`).
-- When running inside a virtual environment or CI pipeline, ensure the working directory is the project root so that the `input/` and `output/` folders are correctly resolved.
+- If the script reports that no images were found, double-check that files exist in the `data/new_input/` directory and that they use supported extensions (`.jpg`, `.jpeg`, `.png`, `.bmp`, `.tiff`, `.tif`).
+- When running inside a virtual environment or CI pipeline, ensure the working directory is the project root so that the `data/new_input/` and `results/new_output/` folders are correctly resolved.
 
