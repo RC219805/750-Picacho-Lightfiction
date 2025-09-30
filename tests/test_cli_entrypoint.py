@@ -30,8 +30,8 @@ def test_main_defaults_to_yaml(monkeypatch):
     assert exit_code == 0
     manifest_path, input_dir, output_dir = captured["args"]
     assert manifest_path == Path("config/view_selects.yml")
-    assert input_dir == Path("input")
-    assert output_dir == Path("output")
+    assert input_dir == Path("data/new_input")
+    assert output_dir == Path("results/new_output")
 
 
 def test_main_legacy_flag_invokes_legacy(monkeypatch):
