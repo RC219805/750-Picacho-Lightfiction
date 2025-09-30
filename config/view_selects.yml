@@ -29,6 +29,18 @@ renders:
           - type: grade
             temperature_shift: 15  # Warm the image slightly
             micro_contrast: 1.1    # Enhance local contrast
+      - filename: lobby_daylight_clean.jpg
+        directory: clean
+        operations:
+          - type: inpaint
+            mask: masks/lobby_daylight_furniture.png
+            blur_radius: 20
+            feather_radius: 6
+          - type: material_enhance
+            clarity: 1.25
+            micro_contrast: 1.3
+            depth: 1.08
+            sheen: 1.04
   - source: rooftop_evening.png
     variants:
       - filename: rooftop_evening_story.png

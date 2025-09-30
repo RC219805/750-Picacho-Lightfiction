@@ -70,6 +70,8 @@ The YAML manifest allows you to specify:
 - Crop operations using preset aspect ratios with focal offsets
 - Resize operations with aspect ratio presets
 - Color grading operations (exposure, contrast, saturation, temperature_shift, shadow_lift, highlight_lift, micro_contrast)
+- Mask-driven inpainting to remove furnishings or signage (`type: inpaint`)
+- Material enrichment operations to emphasize texture and surface clarity (`type: material_enhance`)
 - Custom output filenames and directories
 
 Contrast and saturation grading entries accept either multiplier-style values
@@ -95,6 +97,17 @@ renders:
           - type: grade
             temperature_shift: 15  # Warm the image
             micro_contrast: 1.1    # Enhance local contrast
+      - filename: lobby_daylight_clean.jpg
+        operations:
+          - type: inpaint
+            mask: masks/lobby_daylight_furniture.png  # remove stools and accent tables
+            blur_radius: 18
+            feather_radius: 6
+          - type: material_enhance
+            clarity: 1.25
+            micro_contrast: 1.3
+            depth: 1.1
+            sheen: 1.05
 ```
 
 ### Crop Presets
