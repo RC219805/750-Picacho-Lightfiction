@@ -4,7 +4,7 @@ from pathlib import Path
 import sys
 
 import pytest
-from PIL import Image, ImageOps
+from PIL import Image, ImageOps, ImageEnhance
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
@@ -12,7 +12,7 @@ if str(PROJECT_ROOT) not in sys.path:
 
 from src.config import DCI_4K_RESOLUTION
 from src.processing import resize_image, process_image
-from src.adjustments import apply_crop_preset, hero_21x9
+from src.adjustments import apply_crop_preset, apply_grading, hero_21x9
 
 
 def test_resize_image_preserves_aspect_ratio_with_padding():
@@ -75,6 +75,45 @@ def test_apply_crop_preset_resolves_mapping():
     preset_image = apply_crop_preset(base, "web_16x9")
 
     assert (preset_image.width / preset_image.height) == pytest.approx(16 / 9, rel=1e-3)
+
+
+def _sampled_test_image() -> Image.Image:
+    """Create a small image with varied tones for grading assertions."""
+
+    image = Image.new("RGB", (2, 2))
+    image.putpixel((0, 0), (60, 60, 60))
+    image.putpixel((1, 0), (200, 200, 200))
+    image.putpixel((0, 1), (120, 50, 30))
+    image.putpixel((1, 1), (220, 180, 40))
+    return image
+
+
+def test_apply_grading_contrast_supports_additive_and_multiplier():
+    """Contrast honors legacy additive deltas and new multiplier values."""
+
+    base = _sampled_test_image()
+
+    additive = apply_grading(base, {"contrast": 0.2})
+    expected_additive = ImageEnhance.Contrast(base).enhance(1.2)
+    assert additive.tobytes() == expected_additive.tobytes()
+
+    multiplier = apply_grading(base, {"contrast": 1.5})
+    expected_multiplier = ImageEnhance.Contrast(base).enhance(1.5)
+    assert multiplier.tobytes() == expected_multiplier.tobytes()
+
+
+def test_apply_grading_saturation_supports_additive_and_multiplier():
+    """Saturation adjustments match additive and multiplicative expectations."""
+
+    base = _sampled_test_image()
+
+    additive = apply_grading(base, {"saturation": 0.1})
+    expected_additive = ImageEnhance.Color(base).enhance(1.1)
+    assert additive.tobytes() == expected_additive.tobytes()
+
+    multiplier = apply_grading(base, {"saturation": 1.8})
+    expected_multiplier = ImageEnhance.Color(base).enhance(1.8)
+    assert multiplier.tobytes() == expected_multiplier.tobytes()
 
 
 def test_process_image_honors_variant_crop(tmp_path):
