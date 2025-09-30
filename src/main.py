@@ -411,8 +411,8 @@ def main_legacy(
     Legacy main pipeline execution.
     Processes all images in the input directory and saves them to the output directory.
     """
-    resolved_input = Path(input_dir) if input_dir else Path(INPUT_DIR)
-    resolved_output = Path(output_dir) if output_dir else Path(OUTPUT_DIR)
+    resolved_input = input_dir if input_dir else Path(INPUT_DIR)
+    resolved_output = output_dir if output_dir else Path(OUTPUT_DIR)
 
     print("Starting rendering pipeline...")
     print(f"Target resolution: {target_size[0]}x{target_size[1]} (4K DCI)")
