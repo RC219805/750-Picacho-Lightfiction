@@ -403,8 +403,8 @@ def main(argv: List[str] | None = None) -> int:
 
 def main_legacy(
     *,
-    input_dir: Path | str | None = None,
-    output_dir: Path | str | None = None,
+    input_dir: Path | None = None,
+    output_dir: Path | None = None,
     target_size: Tuple[int, int] = DCI_4K_RESOLUTION,
 ):
     """
