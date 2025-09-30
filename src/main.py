@@ -334,11 +334,7 @@ def run_pipeline(
 
 def main(argv: List[str] | None = None) -> int:
     """Entry point used by both the CLI and legacy main() calls."""
-    
-    # If called without arguments, use legacy mode
-    if argv is None and len(sys.argv) == 1:
-        return main_legacy()
-    
+
     # Parse command line arguments for new YAML mode
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
