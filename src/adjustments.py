@@ -40,6 +40,21 @@ def _recombine_alpha(rgb: Image.Image, alpha: Optional[Image.Image], original_mo
     return merged.convert(original_mode)
 
 
+def _resolve_enhance_factor(value: float) -> float:
+    """Return a Pillow enhancement factor honoring legacy additive inputs."""
+
+    factor = float(value)
+
+    if -1.0 <= factor <= 1.0:
+        # Legacy manifests treated ``0.2`` as ``1.2``. Preserve that behavior.
+        factor = 1.0 + factor
+    elif factor < 0.0:
+        # Pillow expects non-negative enhancement factors.
+        factor = 0.0
+
+    return factor
+
+
 def apply_temperature_shift(image: Image.Image, mired_shift: float) -> Image.Image:
     """Warm (+) or cool (-) an image by adjusting channel gains."""
 
@@ -141,15 +156,15 @@ def apply_grading(image: Image.Image, grading: Optional[Dict[str, float]]) -> Im
         from PIL import ImageEnhance
         result = ImageEnhance.Brightness(result).enhance(1 + float(exposure))
 
-    contrast = grading.get("contrast") 
+    contrast = grading.get("contrast")
     if contrast is not None:
         from PIL import ImageEnhance
-        result = ImageEnhance.Contrast(result).enhance(1 + float(contrast))
+        result = ImageEnhance.Contrast(result).enhance(_resolve_enhance_factor(contrast))
 
     saturation = grading.get("saturation")
     if saturation is not None:
         from PIL import ImageEnhance
-        result = ImageEnhance.Color(result).enhance(1 + float(saturation))
+        result = ImageEnhance.Color(result).enhance(_resolve_enhance_factor(saturation))
 
     # Handle advanced grading parameters
     temp_shift = grading.get("temperature_shift")

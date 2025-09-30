@@ -53,9 +53,16 @@ python -m src.main --manifest config/view_selects.yml --input-dir input --output
 The YAML manifest allows you to specify:
 - Multiple output variants per source image
 - Crop operations using preset aspect ratios with focal offsets
-- Resize operations with aspect ratio presets  
+- Resize operations with aspect ratio presets
 - Color grading operations (exposure, contrast, saturation, temperature_shift, shadow_lift, highlight_lift, micro_contrast)
 - Custom output filenames and directories
+
+Contrast and saturation grading entries accept either multiplier-style values
+(`1.35` increases contrast by 35%) or legacy additive deltas in the range
+`[-1.0, 1.0]` which are converted to multipliers internally (for example,
+`0.2` becomes `1.2`). Use values greater than `1.0` to take direct control over
+the enhancement factor in new manifests while continuing to support older
+configurations.
 
 Example YAML manifest with crop and advanced grading:
 
