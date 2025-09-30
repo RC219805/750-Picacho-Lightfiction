@@ -42,6 +42,21 @@ Tools for spatially-aware application of materials and textures to architectural
 
 3. Processed files will be saved in the `results/new_output/` directory with the suffix `_processed`.
 
+To quickly process a different folder without editing configuration files, you can
+pass the directories as positional arguments. The first path overrides the input
+directory and an optional second path overrides the output directory:
+
+```bash
+python -m src.main /path/to/input /path/to/output
+```
+
+When using the legacy JSON pipeline, combine the positional overrides with the
+`--legacy` flag:
+
+```bash
+python -m src.main --legacy /path/to/input /path/to/output
+```
+
 ### YAML Manifest Processing
 
 For advanced workflows, you can use YAML manifests to define multiple variants and operations:

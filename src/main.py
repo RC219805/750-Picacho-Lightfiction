@@ -339,17 +339,20 @@ def main(argv: List[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         "--manifest",
-        default=str(DEFAULT_MANIFEST_PATH),
+        default=DEFAULT_MANIFEST_PATH,
+        type=Path,
         help="Path to the YAML manifest that describes processing tasks.",
     )
     parser.add_argument(
         "--input-dir",
-        default=str(INPUT_DIR),
+        type=Path,
+        default=None,
         help="Base directory used to resolve relative source paths.",
     )
     parser.add_argument(
         "--output-dir",
-        default=str(OUTPUT_DIR),
+        type=Path,
+        default=None,
         help="Directory where processed variants are written.",
     )
     parser.add_argument(
@@ -357,43 +360,83 @@ def main(argv: List[str] | None = None) -> int:
         action="store_true",
         help="Use legacy JSON manifest processing instead of YAML.",
     )
+    parser.add_argument(
+        "paths",
+        nargs="*",
+        metavar="PATH",
+        help=(
+            "Optional shorthand to override directories. Provide one positional "
+            "argument to set the input directory, or two to set both input and "
+            "output directories."
+        ),
+    )
 
     args = parser.parse_args(argv)
 
-    if args.legacy:
-        return main_legacy()
+    if len(args.paths) > 2:
+        parser.error("Too many positional PATH arguments provided.")
 
-    manifest_path = Path(args.manifest)
-    input_dir = Path(args.input_dir)
-    output_dir = Path(args.output_dir)
+    positional_paths = [Path(path) for path in args.paths]
+
+    if args.input_dir is not None and positional_paths:
+        parser.error(
+            "Specify the input directory using either --input-dir or a positional PATH, not both."
+        )
+
+    if args.output_dir is not None and len(positional_paths) == 2:
+        parser.error(
+            "Specify the output directory using either --output-dir or a positional PATH, not both."
+        )
+
+    manifest_path = args.manifest
+    input_dir = args.input_dir or (positional_paths[0] if positional_paths else Path(INPUT_DIR))
+    if len(positional_paths) >= 2:
+        output_dir = positional_paths[1]
+    else:
+        output_dir = args.output_dir or Path(OUTPUT_DIR)
+
+    if args.legacy:
+        return main_legacy(
+            input_dir=input_dir,
+            output_dir=output_dir,
+            target_size=DCI_4K_RESOLUTION,
+        )
 
     return run_yaml_pipeline(manifest_path, input_dir, output_dir)
 
 
-def main_legacy():
+def main_legacy(
+    *,
+    input_dir: Path | str | None = None,
+    output_dir: Path | str | None = None,
+    target_size: Tuple[int, int] = DCI_4K_RESOLUTION,
+):
     """
     Legacy main pipeline execution.
     Processes all images in the input directory and saves them to the output directory.
     """
+    resolved_input = Path(input_dir) if input_dir else Path(INPUT_DIR)
+    resolved_output = Path(output_dir) if output_dir else Path(OUTPUT_DIR)
+
     print("Starting rendering pipeline...")
-    print(f"Target resolution: {DCI_4K_RESOLUTION[0]}x{DCI_4K_RESOLUTION[1]} (4K DCI)")
-    
+    print(f"Target resolution: {target_size[0]}x{target_size[1]} (4K DCI)")
+
     # Get all image files from input directory
-    input_files = get_image_files(INPUT_DIR)
+    input_files = get_image_files(str(resolved_input))
 
     if not input_files:
-        print(f"No image files found in '{INPUT_DIR}' directory.")
+        print(f"No image files found in '{resolved_input}' directory.")
         print("Please add some images to process.")
         return 0
-    
+
     print(f"Found {len(input_files)} image(s) to process:")
     for file in input_files:
         print(f"  - {os.path.basename(file)}")
-    
+
     results = run_pipeline(
-        input_dir=Path(INPUT_DIR),
-        output_dir=Path(OUTPUT_DIR),
-        target_size=DCI_4K_RESOLUTION,
+        input_dir=resolved_input,
+        output_dir=resolved_output,
+        target_size=target_size,
     )
 
     processed_count = len(results["processed"])
@@ -411,7 +454,7 @@ def main_legacy():
         print(f"Failed to process: {failed_count} images")
 
     if processed_count:
-        print(f"Results saved in '{OUTPUT_DIR}' directory.")
+        print(f"Results saved in '{resolved_output}' directory.")
     
     return 0 if failed_count == 0 else 1
 
