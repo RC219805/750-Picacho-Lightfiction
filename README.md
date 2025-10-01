@@ -57,6 +57,19 @@ When using the legacy JSON pipeline, combine the positional overrides with the
 python -m src.main --legacy /path/to/input /path/to/output
 ```
 
+### Processed Output Manifests
+
+After running the main pipeline you can generate CSV and Markdown manifests that
+list every processed file and suggest pairings with enhanced renders by running
+
+```bash
+python scripts/generate_processed_manifest.py
+```
+
+The script scans `results/new_output/` for files containing the `_processed`
+suffix and cross-references them with any assets in `output/`. Generated reports
+are written to `manifests/`.
+
 ### YAML Manifest Processing
 
 For advanced workflows, you can use YAML manifests to define multiple variants and operations:
