@@ -3,15 +3,16 @@
 from pathlib import Path
 import sys
 
+import numpy as np
 import pytest
-from PIL import Image, ImageOps, ImageEnhance
+from PIL import Image, ImageDraw, ImageEnhance, ImageOps
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from src.config import DCI_4K_RESOLUTION
-from src.processing import resize_image, process_image
+from src.processing import process_image, process_variant, resize_image
 from src.adjustments import apply_crop_preset, apply_grading, hero_21x9
 
 
@@ -144,3 +145,76 @@ def test_process_image_honors_variant_crop(tmp_path):
     # Because the variant biases the crop upward, the warm band should still be visible near the top.
     sample = processed.getpixel((processed.width // 2, 10))
     assert sample == (255, 0, 0)
+
+
+def test_process_variant_inpaint_operation(tmp_path):
+    base_color = (110, 125, 140)
+    source = Image.new("RGB", (96, 96), color=base_color)
+    draw = ImageDraw.Draw(source)
+    draw.rectangle([28, 28, 68, 68], fill=(220, 60, 40))
+
+    mask = Image.new("L", (96, 96), 0)
+    mask_draw = ImageDraw.Draw(mask)
+    mask_draw.rectangle([28, 28, 68, 68], fill=255)
+
+    source_path = tmp_path / "inpaint_source.png"
+    mask_path = tmp_path / "mask.png"
+    output_path = tmp_path / "inpaint_output.png"
+    source.save(source_path)
+    mask.save(mask_path)
+
+    before = np.asarray(source, dtype=np.int16)
+    region_before = before[32:64, 32:64]
+    baseline_diff = np.abs(region_before - np.array(base_color)).mean()
+
+    success = process_variant(
+        str(source_path),
+        str(output_path),
+        [
+            {
+                "type": "inpaint",
+                "mask": str(mask_path),
+                "blur_radius": 14,
+                "feather_radius": 4,
+            }
+        ],
+    )
+
+    assert success
+
+    cleaned = Image.open(output_path)
+    region_after = np.asarray(cleaned, dtype=np.int16)[32:64, 32:64]
+    cleaned_diff = np.abs(region_after - np.array(base_color)).mean()
+
+    assert cleaned_diff < baseline_diff
+
+
+def test_process_variant_material_enhance_operation(tmp_path):
+    gradient = np.tile(np.linspace(80, 150, 128, dtype=np.uint8), (128, 1))
+    source = Image.fromarray(gradient, mode="L").convert("RGB")
+
+    source_path = tmp_path / "material_source.png"
+    output_path = tmp_path / "material_output.png"
+    source.save(source_path)
+
+    success = process_variant(
+        str(source_path),
+        str(output_path),
+        [
+            {
+                "type": "material_enhance",
+                "clarity": 1.3,
+                "micro_contrast": 1.4,
+                "depth": 1.2,
+                "sheen": 1.05,
+            }
+        ],
+    )
+
+    assert success
+
+    enhanced = Image.open(output_path)
+    base_std = np.asarray(source.convert("L"), dtype=np.float32).std()
+    enhanced_std = np.asarray(enhanced.convert("L"), dtype=np.float32).std()
+
+    assert enhanced_std > base_std

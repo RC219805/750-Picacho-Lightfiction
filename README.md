@@ -44,8 +44,7 @@ Tools for spatially-aware application of materials and textures to architectural
 
 To quickly process a different folder without editing configuration files, you can
 pass the directories as positional arguments. The first path overrides the input
-directory and an optional second path overrides the output directory. Positional
-overrides should not be combined with the `--input-dir` or `--output-dir` flags:
+directory and an optional second path overrides the output directory:
 
 ```bash
 python -m src.main /path/to/input /path/to/output
@@ -57,6 +56,19 @@ When using the legacy JSON pipeline, combine the positional overrides with the
 ```bash
 python -m src.main --legacy /path/to/input /path/to/output
 ```
+
+### Processed Output Manifests
+
+After running the main pipeline you can generate CSV and Markdown manifests that
+list every processed file and suggest pairings with enhanced renders by running
+
+```bash
+python scripts/generate_processed_manifest.py
+```
+
+The script scans `results/new_output/` for files containing the `_processed`
+suffix and cross-references them with any assets in `output/`. Generated reports
+are written to `manifests/`.
 
 ### YAML Manifest Processing
 
@@ -71,6 +83,8 @@ The YAML manifest allows you to specify:
 - Crop operations using preset aspect ratios with focal offsets
 - Resize operations with aspect ratio presets
 - Color grading operations (exposure, contrast, saturation, temperature_shift, shadow_lift, highlight_lift, micro_contrast)
+- Mask-driven inpainting to remove furnishings or signage (`type: inpaint`)
+- Material enrichment operations to emphasize texture and surface clarity (`type: material_enhance`)
 - Custom output filenames and directories
 
 Contrast and saturation grading entries accept either multiplier-style values
@@ -96,6 +110,17 @@ renders:
           - type: grade
             temperature_shift: 15  # Warm the image
             micro_contrast: 1.1    # Enhance local contrast
+      - filename: lobby_daylight_clean.jpg
+        operations:
+          - type: inpaint
+            mask: masks/lobby_daylight_furniture.png  # remove stools and accent tables
+            blur_radius: 18
+            feather_radius: 6
+          - type: material_enhance
+            clarity: 1.25
+            micro_contrast: 1.3
+            depth: 1.1
+            sheen: 1.05
 ```
 
 ### Crop Presets

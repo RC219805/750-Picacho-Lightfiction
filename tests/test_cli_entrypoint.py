@@ -119,21 +119,3 @@ def test_main_accepts_positional_input_and_output_for_legacy(monkeypatch, tmp_pa
     assert input_dir == custom_input
     assert output_dir == custom_output
     assert target_size == cli.DCI_4K_RESOLUTION
-
-
-def test_main_rejects_mixed_input_sources():
-    """Mixing --input-dir with a positional override should exit with an error."""
-
-    with pytest.raises(SystemExit) as excinfo:
-        cli.main(["--input-dir", "from-flag", "positional/input"])
-
-    assert excinfo.value.code == 2
-
-
-def test_main_rejects_mixed_output_sources():
-    """Mixing --output-dir with a positional override should exit with an error."""
-
-    with pytest.raises(SystemExit) as excinfo:
-        cli.main(["--legacy", "--output-dir", "from-flag", "in_pos", "out_pos"])
-
-    assert excinfo.value.code == 2

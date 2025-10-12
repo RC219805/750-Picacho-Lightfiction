@@ -12,7 +12,12 @@ import sys
 # Add current directory to path for imports
 sys.path.append(os.path.dirname(__file__))
 from config import ASPECT_RATIO_PRESETS, DCI_4K_RESOLUTION
-from adjustments import apply_grading, apply_crop_preset
+from adjustments import (
+    apply_crop_preset,
+    apply_grading,
+    enhance_material_definition,
+    inpaint_with_mask,
+)
 
 
 def load_image(filepath):
@@ -108,6 +113,26 @@ def resize_image(image, target_size=DCI_4K_RESOLUTION, resample=Image.LANCZOS):
     return background
 
 
+def _resolve_mask(mask_reference, base_image_path: str) -> Image.Image:
+    """Return a mask image for the supplied reference."""
+
+    if isinstance(mask_reference, Image.Image):
+        return mask_reference.convert("L")
+
+    if not isinstance(mask_reference, str):
+        raise TypeError("Mask reference must be a path or PIL image.")
+
+    mask_path = mask_reference
+    if not os.path.isabs(mask_path):
+        mask_path = os.path.join(os.path.dirname(base_image_path), mask_path)
+
+    if not os.path.exists(mask_path):
+        raise FileNotFoundError(f"Mask file not found: {mask_path}")
+
+    with Image.open(mask_path) as mask_image:
+        return mask_image.convert("L")
+
+
 def _resolve_resize_target(operation: Dict, presets: Dict[str, tuple]) -> tuple:
     """Return a ``(width, height)`` tuple for a resize operation."""
 
@@ -198,6 +223,32 @@ def process_variant(
                 params = {k: v for k, v in operation.items() if k != "type"}
                 # Use the advanced grading from adjustments.py instead of the simple one
                 image = apply_grading(image, params)
+            elif op_type == "inpaint":
+                mask_ref = operation.get("mask")
+                if mask_ref is None:
+                    raise ValueError("Inpaint operation requires a 'mask' entry.")
+
+                mask_image = _resolve_mask(mask_ref, input_path)
+                blur_radius = float(operation.get("blur_radius", 25.0))
+                feather_radius = float(operation.get("feather_radius", 8.0))
+                strength = float(operation.get("strength", 1.0))
+
+                image = inpaint_with_mask(
+                    image,
+                    mask_image,
+                    blur_radius=blur_radius,
+                    feather_radius=feather_radius,
+                    strength=strength,
+                )
+            elif op_type in {"material_enhance", "enhance_materials"}:
+                params = {k: v for k, v in operation.items() if k != "type"}
+                image = enhance_material_definition(
+                    image,
+                    clarity=float(params.get("clarity", 1.2)),
+                    micro_contrast=float(params.get("micro_contrast", params.get("texture", 1.15))),
+                    depth=float(params.get("depth", params.get("contrast", 1.05))),
+                    sheen=float(params.get("sheen", params.get("saturation", 1.05))),
+                )
             else:
                 raise ValueError(f"Unsupported operation type: {op_type}")
 

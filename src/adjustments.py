@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
-from typing import Dict, Iterable, Optional, Tuple
+from typing import Dict, Iterable, Optional, Tuple, Union
 
 import numpy as np
-from PIL import Image, ImageFilter
+from PIL import Image, ImageEnhance, ImageFilter
 
 
 def _ensure_rgb(image: Image.Image) -> Image.Image:
@@ -135,6 +135,112 @@ def apply_local_contrast(image: Image.Image, amount: float, radius: float = 2.0)
     blend_factor = max(0.0, min(1.0, 1.0 - amount))
     blurred = base.filter(ImageFilter.GaussianBlur(radius=radius))
     return Image.blend(base, blurred, blend_factor)
+
+
+def inpaint_with_mask(
+    image: Image.Image,
+    mask: Union[Image.Image, np.ndarray],
+    *,
+    blur_radius: float = 25.0,
+    feather_radius: float = 8.0,
+    strength: float = 1.0,
+) -> Image.Image:
+    """Gently inpaint masked regions by blending with a blurred infill.
+
+    The function provides a simple content-aware fill well suited to removing
+    furnishings or signage from architectural renders. Masked pixels are
+    replaced by a feathered composite of the source image blurred with the
+    supplied ``blur_radius``.
+
+    Args:
+        image: Source image to retouch.
+        mask: Mask describing the pixels to replace. The mask can be a PIL
+            image or a NumPy array. Non-zero values mark pixels that should be
+            inpainted.
+        blur_radius: Radius (in pixels) applied to generate the infill plate.
+        feather_radius: Additional blur applied to the mask for soft edges.
+        strength: Multiplier for the mask influence in the range ``[0, 1]``.
+
+    Returns:
+        PIL.Image: The retouched image with masked regions softened.
+    """
+
+    base_rgb, alpha = _split_alpha(image)
+
+    if isinstance(mask, Image.Image):
+        mask_image = mask.convert("L")
+    else:
+        mask_array = np.asarray(mask, dtype=np.uint8)
+        mask_image = Image.fromarray(mask_array, mode="L")
+
+    if feather_radius > 0:
+        mask_image = mask_image.filter(ImageFilter.GaussianBlur(radius=float(feather_radius)))
+
+    mask_arr = np.asarray(mask_image, dtype=np.float32) / 255.0
+    mask_arr *= max(0.0, min(1.0, float(strength)))
+
+    blurred = base_rgb.filter(ImageFilter.GaussianBlur(radius=float(max(0.0, blur_radius))))
+
+    base_arr = np.asarray(base_rgb, dtype=np.float32)
+    blurred_arr = np.asarray(blurred, dtype=np.float32)
+
+    blend = mask_arr[..., None]
+    filled = base_arr * (1.0 - blend) + blurred_arr * blend
+
+    filled = np.clip(filled, 0.0, 255.0).astype(np.uint8)
+    filled_image = Image.fromarray(filled, mode="RGB")
+
+    return _recombine_alpha(filled_image, alpha, image.mode)
+
+
+def enhance_material_definition(
+    image: Image.Image,
+    *,
+    clarity: float = 1.2,
+    micro_contrast: float = 1.15,
+    depth: float = 1.05,
+    sheen: float = 1.05,
+) -> Image.Image:
+    """Enhance perceived material richness through clarity and contrast boosts.
+
+    Args:
+        image: Source image containing architectural materials.
+        clarity: Sharpness multiplier applied to restore crisp edges.
+        micro_contrast: Strength of the unsharp mask applied to fine textures.
+        depth: Global contrast multiplier.
+        sheen: Saturation multiplier to subtly enrich surface tones.
+
+    Returns:
+        PIL.Image: The enhanced image with reinforced surface detail.
+    """
+
+    working, alpha = _split_alpha(image)
+
+    result = working.copy()
+
+    if clarity != 1.0:
+        result = ImageEnhance.Sharpness(result).enhance(max(0.0, float(clarity)))
+
+    if micro_contrast != 1.0:
+        micro = max(0.0, float(micro_contrast))
+        if micro > 1.0:
+            percent = min(500, max(0, int((micro - 1.0) * 250)))
+            if percent:
+                result = result.filter(
+                    ImageFilter.UnsharpMask(radius=1.6, percent=percent, threshold=2)
+                )
+        else:
+            blend = max(0.0, min(1.0, 1.0 - micro))
+            softened = result.filter(ImageFilter.GaussianBlur(radius=1.2))
+            result = Image.blend(result, softened, blend)
+
+    if depth != 1.0:
+        result = ImageEnhance.Contrast(result).enhance(max(0.0, float(depth)))
+
+    if sheen != 1.0:
+        result = ImageEnhance.Color(result).enhance(max(0.0, float(sheen)))
+
+    return _recombine_alpha(result, alpha, image.mode)
 
 
 def apply_grading(image: Image.Image, grading: Optional[Dict[str, float]]) -> Image.Image:

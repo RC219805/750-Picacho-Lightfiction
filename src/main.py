@@ -345,14 +345,12 @@ def main(argv: List[str] | None = None) -> int:
     )
     parser.add_argument(
         "--input-dir",
-        dest="input_dir_flag",
         type=Path,
         default=None,
         help="Base directory used to resolve relative source paths.",
     )
     parser.add_argument(
         "--output-dir",
-        dest="output_dir_flag",
         type=Path,
         default=None,
         help="Directory where processed variants are written.",
@@ -363,33 +361,39 @@ def main(argv: List[str] | None = None) -> int:
         help="Use legacy JSON manifest processing instead of YAML.",
     )
     parser.add_argument(
-        "input_dir",
-        nargs="?",
-        type=Path,
-        help="Optional positional override for the input directory.",
-    )
-    parser.add_argument(
-        "output_dir",
-        nargs="?",
-        type=Path,
-        help="Optional positional override for the output directory.",
+        "paths",
+        nargs="*",
+        metavar="PATH",
+        help=(
+            "Optional shorthand to override directories. Provide one positional "
+            "argument to set the input directory, or two to set both input and "
+            "output directories."
+        ),
     )
 
     args = parser.parse_args(argv)
 
-    if args.input_dir_flag is not None and args.input_dir is not None:
+    if len(args.paths) > 2:
+        parser.error("Too many positional PATH arguments provided.")
+
+    positional_paths = [Path(path) for path in args.paths]
+
+    if args.input_dir is not None and positional_paths:
         parser.error(
-            "Specify the input directory using either --input-dir or a positional argument, not both."
+            "Specify the input directory using either --input-dir or a positional PATH, not both."
         )
 
-    if args.output_dir_flag is not None and args.output_dir is not None:
+    if args.output_dir is not None and len(positional_paths) == 2:
         parser.error(
-            "Specify the output directory using either --output-dir or a positional argument, not both."
+            "Specify the output directory using either --output-dir or a positional PATH, not both."
         )
 
     manifest_path = args.manifest
-    input_dir = args.input_dir_flag or args.input_dir or Path(INPUT_DIR)
-    output_dir = args.output_dir_flag or args.output_dir or Path(OUTPUT_DIR)
+    input_dir = args.input_dir or (positional_paths[0] if positional_paths else Path(INPUT_DIR))
+    if len(positional_paths) >= 2:
+        output_dir = positional_paths[1]
+    else:
+        output_dir = args.output_dir or Path(OUTPUT_DIR)
 
     if args.legacy:
         return main_legacy(
@@ -403,14 +407,17 @@ def main(argv: List[str] | None = None) -> int:
 
 def main_legacy(
     *,
-    input_dir: Path = Path(INPUT_DIR),
-    output_dir: Path = Path(OUTPUT_DIR),
+    input_dir: Path | str | None = None,
+    output_dir: Path | str | None = None,
     target_size: Tuple[int, int] = DCI_4K_RESOLUTION,
 ):
     """
     Legacy main pipeline execution.
     Processes all images in the input directory and saves them to the output directory.
     """
+    resolved_input = Path(input_dir) if input_dir else Path(INPUT_DIR)
+    resolved_output = Path(output_dir) if output_dir else Path(OUTPUT_DIR)
+
     print("Starting rendering pipeline...")
     print(f"Target resolution: {target_size[0]}x{target_size[1]} (4K DCI)")
 
